@@ -1,0 +1,98 @@
+name: Conditional sign-offs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: signoffs-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Determine required sign-offs
+    runs-on: ubuntu-latest
+    outputs:
+      code_check: ${{ steps.plan.outputs.code_check }}
+      qa_dev: ${{ steps.plan.outputs.qa_dev }}
+      blso: ${{ steps.plan.outputs.blso }}
+      architect: ${{ steps.plan.outputs.architect }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Policy comes from the target branch, not from proposed changes.
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Determine applicable approvals
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/signoffs.py plan
+
+  code_check:
+    name: Code Check approval
+    needs: plan
+    if: needs.plan.outputs.code_check == 'true'
+    runs-on: ubuntu-latest
+    environment: code-check
+    steps:
+      - run: echo 'Code Check was explicitly approved. Identity is verified by the final gate.'
+
+  qa_dev:
+    name: QA Dev approval
+    needs: plan
+    if: needs.plan.outputs.qa_dev == 'true'
+    runs-on: ubuntu-latest
+    environment: qa-dev
+    steps:
+      - run: echo 'QA Dev was explicitly approved. Identity is verified by the final gate.'
+
+  blso:
+    name: BLSO approval
+    needs: plan
+    if: needs.plan.outputs.blso == 'true'
+    runs-on: ubuntu-latest
+    environment: blso
+    steps:
+      - run: echo 'BLSO was explicitly approved. Identity is verified by the final gate.'
+
+  architect:
+    name: Architect approval
+    needs: plan
+    if: needs.plan.outputs.architect == 'true'
+    runs-on: ubuntu-latest
+    environment: architect
+    steps:
+      - run: echo 'Architect was explicitly approved. Identity is verified by the final gate.'
+
+  nightly:
+    name: Nightly example tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run application tests
+        # These run on every PR for the demo, rather than waiting for a clock.
+        run: python3 -m unittest discover -s tests -v
+
+  validate:
+    name: Required sign-offs
+    needs: [plan, code_check, qa_dev, blso, architect, nightly]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Enforce approvals and separation of duties
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: python3 scripts/signoffs.py validate

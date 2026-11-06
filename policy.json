@@ -1,0 +1,45 @@
+{
+  "target_branches": [
+    "main"
+  ],
+  "gates": {
+    "code_check": {
+      "name": "Code Check",
+      "environment": "code-check",
+      "paths": [
+        "app/**",
+        "tests/**",
+        "architecture/**"
+      ]
+    },
+    "qa_dev": {
+      "name": "QA Dev",
+      "environment": "qa-dev",
+      "paths": [
+        "app/**",
+        "tests/**"
+      ]
+    },
+    "blso": {
+      "name": "BLSO",
+      "environment": "blso",
+      "paths": [
+        "app/billing/**"
+      ]
+    },
+    "architect": {
+      "name": "Architect",
+      "environment": "architect",
+      "paths": [
+        "app/billing/**",
+        "architecture/**"
+      ]
+    }
+  },
+  "incompatible": [
+    [
+      "code_check",
+      "blso"
+    ]
+  ]
+}
